@@ -35,7 +35,7 @@ Deno.serve(async (req: Request) => {
     // Create default admin user
     const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: "admin@wilbloan.local",
-      password: "Animalka",
+      password: "Animalka123",
       email_confirm: true,
     });
 
@@ -53,6 +53,7 @@ Deno.serve(async (req: Request) => {
         id: userData.user.id,
         username: "wilbert01740",
         role: "admin",
+        is_active: true,
       });
 
     if (profileError) {
@@ -69,6 +70,7 @@ Deno.serve(async (req: Request) => {
         success: true,
         message: "Default admin account created",
         username: "wilbert01740",
+        password: "Animalka123",
         email: userData.user.email,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
