@@ -13,11 +13,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { email, password } = await req.json();
+    const { email, password, username, role = "viewer", creatorEmail } = await req.json();
 
-    if (!email || !password) {
+    if (!email || !password || !username) {
       return new Response(
-        JSON.stringify({ error: "Email and password are required" }),
+        JSON.stringify({ error: "Email, password, and username are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -29,12 +29,46 @@ Deno.serve(async (req: Request) => {
 
     // Check if user already exists
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const exists = existingUsers?.users?.some((u) => u.email === email);
-    if (exists) {
+    if (existingUsers?.users?.some((u) => u.email === email)) {
       return new Response(
-        JSON.stringify({ error: "Admin user already exists" }),
+        JSON.stringify({ error: "User with this email already exists" }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Check if username is taken
+    const { data: existingUsernames } = await supabaseAdmin
+      .from("admin_profiles")
+      .select("username")
+      .eq("username", username);
+
+    if (existingUsernames && existingUsernames.length > 0) {
+      return new Response(
+        JSON.stringify({ error: "Username already taken" }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // If creatorEmail provided, verify they are admin
+    let creatorId: string | null = null;
+    if (creatorEmail) {
+      const { data: creatorUsers } = await supabaseAdmin.auth.admin.listUsers();
+      const creator = creatorUsers?.users?.find((u) => u.email === creatorEmail);
+      if (creator) {
+        const { data: creatorProfile } = await supabaseAdmin
+          .from("admin_profiles")
+          .select("role")
+          .eq("id", creator.id)
+          .maybeSingle();
+
+        if (creatorProfile?.role !== "admin") {
+          return new Response(
+            JSON.stringify({ error: "Only admins can create accounts" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        creatorId = creator.id;
+      }
     }
 
     // Create the auth user
@@ -51,12 +85,19 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Insert into admin_profiles
+    // Insert into admin_profiles with role
     const { error: profileError } = await supabaseAdmin
       .from("admin_profiles")
-      .insert({ id: userData.user.id });
+      .insert({
+        id: userData.user.id,
+        username,
+        role,
+        created_by: creatorId,
+      });
 
     if (profileError) {
+      // Cleanup auth user if profile creation fails
+      await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
       return new Response(
         JSON.stringify({ error: profileError.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -64,7 +105,12 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, email: userData.user.email }),
+      JSON.stringify({
+        success: true,
+        email: userData.user.email,
+        username,
+        role,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {

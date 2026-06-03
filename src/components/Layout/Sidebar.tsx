@@ -12,20 +12,22 @@ interface SidebarProps {
   onNavigate: (tab: ActiveTab) => void;
 }
 
-const navItems: { tab: ActiveTab; label: string; icon: React.ReactNode }[] = [
+const allNavItems: { tab: ActiveTab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
   { tab: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
   { tab: 'loans', label: 'Loans', icon: <CreditCard size={18} /> },
-  { tab: 'borrowers', label: 'Borrowers', icon: <Users size={18} /> },
-  { tab: 'payments', label: 'Payments', icon: <Wallet size={18} /> },
-  { tab: 'installments', label: 'Installments', icon: <Calendar size={18} /> },
+  { tab: 'borrowers', label: 'Borrowers', icon: <Users size={18} />, adminOnly: true },
+  { tab: 'payments', label: 'Payments', icon: <Wallet size={18} />, adminOnly: true },
+  { tab: 'installments', label: 'Installments', icon: <Calendar size={18} />, adminOnly: true },
   { tab: 'analytics', label: 'Analytics', icon: <BarChart3 size={18} /> },
   { tab: 'reports', label: 'Reports', icon: <FileText size={18} /> },
-  { tab: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+  { tab: 'settings', label: 'Settings', icon: <Settings size={18} />, adminOnly: true },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ active, onNavigate }) => {
-  const { isAdmin, user, signOut } = useAuth();
+  const { isAdmin, profile, signOut } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
+
+  const navItems = allNavItems.filter(item => !item.adminOnly || isAdmin);
 
   return (
     <>
@@ -68,7 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({ active, onNavigate }) => {
                 <ShieldCheck size={14} className="text-green-400" />
                 <span className="text-green-400 text-xs font-semibold">Admin</span>
               </div>
-              <p className="text-gray-500 text-[10px] truncate mb-2">{user?.email}</p>
+              <p className="text-gray-500 text-[10px] truncate mb-2">{profile?.username}</p>
               <button
                 onClick={signOut}
                 className="w-full flex items-center justify-center gap-2 py-1.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg text-xs font-medium transition-all"

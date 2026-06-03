@@ -8,7 +8,7 @@ interface LoginModalProps {
 
 const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
   const { signIn } = useAuth();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -18,10 +18,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error: authError } = await signIn(email, password);
+    const { error: authError } = await signIn(username, password);
     setLoading(false);
     if (authError) {
-      setError('Invalid email or password.');
+      setError(authError);
     } else {
       onClose();
     }
@@ -69,16 +69,16 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
 
           <div>
             <label className="block text-gray-400 text-xs font-medium mb-1.5">
-              Email Address
+              Username
             </label>
             <div className="relative">
               <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
                 required
-                placeholder="admin@example.com"
+                placeholder="wilbert01740"
                 className="w-full bg-white/5 border border-white/10 text-white rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:border-green-500/50 transition-all placeholder-gray-600"
               />
             </div>

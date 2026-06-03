@@ -1,23 +1,35 @@
-import React, { useState } from 'react';
-import { Save, Download, Upload, Trash2, AlertTriangle, Settings as SettingsIcon, ShieldCheck, UserPlus, Eye, EyeOff, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Save, Download, Upload, Trash2, AlertTriangle, Settings as SettingsIcon, ShieldCheck, UserPlus, Eye, EyeOff, LogOut, Trash, Users } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { storage } from '../../utils/storage';
+import { supabase } from '../../lib/supabase';
+
+interface AdminUser {
+  id: string;
+  username: string;
+  role: 'admin' | 'viewer';
+  is_active: boolean;
+  created_at: string;
+}
 
 const Settings: React.FC = () => {
   const { settings, updateSettings, importData, clearAll } = useApp();
-  const { isAdmin, user, signOut } = useAuth();
+  const { isAdmin, profile, signOut } = useAuth();
   const [businessName, setBusinessName] = useState(settings.businessName);
   const [defaultRate, setDefaultRate] = useState(String(settings.defaultInterestRate));
   const [clearConfirm, setClearConfirm] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Admin setup state
-  const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
+  // Admin management state
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState<'admin' | 'viewer'>('viewer');
   const [showPassword, setShowPassword] = useState(false);
-  const [adminSetupStatus, setAdminSetupStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
-  const [adminSetupLoading, setAdminSetupLoading] = useState(false);
+  const [adminCreateStatus, setAdminCreateStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [adminCreateLoading, setAdminCreateLoading] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,10 +75,32 @@ const Settings: React.FC = () => {
     else setClearConfirm(true);
   };
 
-  const handleAdminSetup = async (e: React.FormEvent) => {
+  const loadAdminUsers = async () => {
+    if (!isAdmin) return;
+    setLoadingAdmins(true);
+    try {
+      const { data, error } = await supabase
+        .from('admin_profiles')
+        .select('id, username, role, is_active, created_at')
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        setAdminUsers(data as AdminUser[]);
+      }
+    } catch {
+      console.error('Failed to load admin users');
+    } finally {
+      setLoadingAdmins(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdmin) loadAdminUsers();
+  }, [isAdmin]);
+
+  const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAdminSetupLoading(true);
-    setAdminSetupStatus(null);
+    setAdminCreateLoading(true);
+    setAdminCreateStatus(null);
     try {
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`;
       const res = await fetch(url, {
@@ -75,20 +109,41 @@ const Settings: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+        body: JSON.stringify({
+          email: `${newUsername}@wilbloan.local`,
+          password: newPassword,
+          username: newUsername,
+          role: newRole,
+          creatorEmail: profile?.username,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setAdminSetupStatus({ type: 'error', msg: data.error ?? 'Failed to create admin.' });
+        setAdminCreateStatus({ type: 'error', msg: data.error ?? 'Failed to create account.' });
       } else {
-        setAdminSetupStatus({ type: 'success', msg: `Admin account created for ${data.email}` });
-        setAdminEmail('');
-        setAdminPassword('');
+        setAdminCreateStatus({ type: 'success', msg: `${newRole.charAt(0).toUpperCase() + newRole.slice(1)} account "${newUsername}" created` });
+        setNewUsername('');
+        setNewPassword('');
+        setNewRole('viewer');
+        loadAdminUsers();
       }
     } catch {
-      setAdminSetupStatus({ type: 'error', msg: 'Network error. Please try again.' });
+      setAdminCreateStatus({ type: 'error', msg: 'Network error. Please try again.' });
     } finally {
-      setAdminSetupLoading(false);
+      setAdminCreateLoading(false);
+    }
+  };
+
+  const handleDeleteAdmin = async (userId: string, username: string) => {
+    if (!isAdmin) return;
+    if (!window.confirm(`Delete account "${username}"? This cannot be undone.`)) return;
+    try {
+      const { error } = await supabase.auth.admin.deleteUser(userId);
+      if (error) throw error;
+      loadAdminUsers();
+      setAdminCreateStatus({ type: 'success', msg: `Account "${username}" deleted` });
+    } catch {
+      setAdminCreateStatus({ type: 'error', msg: 'Failed to delete account' });
     }
   };
 
@@ -215,7 +270,7 @@ const Settings: React.FC = () => {
               </div>
               <div>
                 <p className="text-green-400 font-semibold text-sm">Signed in as Admin</p>
-                <p className="text-gray-400 text-xs mt-0.5">{user?.email}</p>
+                <p className="text-gray-400 text-xs mt-0.5">{profile?.username}</p>
               </div>
             </div>
             <button
@@ -223,27 +278,52 @@ const Settings: React.FC = () => {
               className="flex items-center gap-2 px-4 py-2.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-xl text-sm font-medium transition-all"
             >
               <LogOut size={14} />
-              Sign Out of Admin
+              Sign Out
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
-            <p className="text-gray-500 text-sm">Create the admin account to enable loan editing and management controls.</p>
-            <form onSubmit={handleAdminSetup} className="space-y-3">
-              <div>
-                <label className="block text-gray-400 text-xs font-medium mb-1.5">Admin Email</label>
-                <input
-                  type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} required
-                  placeholder="admin@example.com"
-                  className="w-full bg-white/5 border border-white/10 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-green-500/50 transition-all placeholder-gray-600"
-                />
+          <p className="text-gray-500 text-sm">Sign in to manage accounts.</p>
+        )}
+      </div>
+
+      {/* Admin Management - Only visible to admins */}
+      {isAdmin && (
+        <div className="glass-card p-6">
+          <h3 className="text-white font-semibold mb-5 flex items-center gap-2">
+            <Users size={16} className="text-blue-400" />
+            Manage Admin Accounts
+          </h3>
+
+          {/* Create New Account */}
+          <div className="mb-6 pb-6 border-b border-white/5">
+            <h4 className="text-gray-300 text-sm font-medium mb-3">Create New Account</h4>
+            <form onSubmit={handleCreateAdmin} className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 text-xs font-medium mb-1.5">Username</label>
+                  <input
+                    type="text" value={newUsername} onChange={e => setNewUsername(e.target.value)} required
+                    placeholder="johndoe"
+                    className="w-full bg-white/5 border border-white/10 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-green-500/50 transition-all placeholder-gray-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-xs font-medium mb-1.5">Role</label>
+                  <select
+                    value={newRole} onChange={e => setNewRole(e.target.value as 'admin' | 'viewer')}
+                    className="w-full bg-white/5 border border-white/10 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-green-500/50 transition-all"
+                  >
+                    <option value="admin" className="bg-[#111]">Admin</option>
+                    <option value="viewer" className="bg-[#111]">Viewer</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-gray-400 text-xs font-medium mb-1.5">Password</label>
                 <div className="relative">
                   <input
-                    type={showPassword ? 'text' : 'password'} value={adminPassword}
-                    onChange={e => setAdminPassword(e.target.value)} required minLength={6}
+                    type={showPassword ? 'text' : 'password'} value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)} required minLength={6}
                     placeholder="Min. 6 characters"
                     className="w-full bg-white/5 border border-white/10 text-white rounded-lg px-3 pr-10 py-2.5 text-sm focus:outline-none focus:border-green-500/50 transition-all placeholder-gray-600"
                   />
@@ -253,22 +333,56 @@ const Settings: React.FC = () => {
                   </button>
                 </div>
               </div>
-              {adminSetupStatus && (
-                <div className={`text-xs px-3 py-2 rounded-lg ${adminSetupStatus.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                  {adminSetupStatus.msg}
+              {adminCreateStatus && (
+                <div className={`text-xs px-3 py-2 rounded-lg ${adminCreateStatus.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                  {adminCreateStatus.msg}
                 </div>
               )}
               <button
-                type="submit" disabled={adminSetupLoading}
+                type="submit" disabled={adminCreateLoading}
                 className="flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-black rounded-xl text-sm font-bold transition-all"
               >
                 <UserPlus size={14} />
-                {adminSetupLoading ? 'Creating...' : 'Create Admin Account'}
+                {adminCreateLoading ? 'Creating...' : 'Create Account'}
               </button>
             </form>
           </div>
-        )}
-      </div>
+
+          {/* Admin Users List */}
+          <div>
+            <h4 className="text-gray-300 text-sm font-medium mb-3">Active Accounts</h4>
+            {loadingAdmins ? (
+              <p className="text-gray-500 text-sm">Loading...</p>
+            ) : adminUsers.length === 0 ? (
+              <p className="text-gray-500 text-sm">No accounts yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {adminUsers.map(admin => (
+                  <div key={admin.id} className="flex items-center justify-between p-3 bg-white/3 rounded-lg hover:bg-white/5 transition-all">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-white font-medium text-sm">{admin.username}</p>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${admin.role === 'admin' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                          {admin.role}
+                        </span>
+                      </div>
+                      <p className="text-gray-500 text-xs">{new Date(admin.created_at).toLocaleDateString()}</p>
+                    </div>
+                    {admin.id !== profile?.id && (
+                      <button
+                        onClick={() => handleDeleteAdmin(admin.id, admin.username)}
+                        className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                      >
+                        <Trash size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* App Info */}
       <div className="glass-card p-6">

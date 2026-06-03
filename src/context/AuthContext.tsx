@@ -2,12 +2,22 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
+interface UserProfile {
+  id: string;
+  username: string;
+  role: 'admin' | 'viewer';
+  is_active: boolean;
+  created_at: string;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  profile: UserProfile | null;
   isAdmin: boolean;
+  isViewer: boolean;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (username: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -16,16 +26,26 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const checkAdmin = useCallback(async (userId: string) => {
-    const { data } = await supabase
+  const fetchProfile = useCallback(async (userId: string) => {
+    const { data, error } = await supabase
       .from('admin_profiles')
-      .select('id')
+      .select('id, username, role, is_active, created_at')
       .eq('id', userId)
       .maybeSingle();
-    setIsAdmin(!!data);
+
+    if (error) {
+      console.error('Error fetching profile:', error);
+      return null;
+    }
+
+    if (data) {
+      setProfile(data as UserProfile);
+      return data;
+    }
+    return null;
   }, []);
 
   useEffect(() => {
@@ -33,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        checkAdmin(session.user.id).finally(() => setIsLoading(false));
+        fetchProfile(session.user.id).finally(() => setIsLoading(false));
       } else {
         setIsLoading(false);
       }
@@ -44,29 +64,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       if (session?.user) {
         (async () => {
-          await checkAdmin(session.user.id);
+          await fetchProfile(session.user.id);
         })();
       } else {
-        setIsAdmin(false);
+        setProfile(null);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [checkAdmin]);
+  }, [fetchProfile]);
 
-  const signIn = useCallback(async (email: string, password: string): Promise<{ error: string | null }> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message };
-    return { error: null };
+  const signIn = useCallback(async (username: string, password: string): Promise<{ error: string | null }> => {
+    try {
+      // Fetch user email by username
+      const { data: userProfiles, error: profileError } = await supabase
+        .from('admin_profiles')
+        .select('id')
+        .eq('username', username)
+        .maybeSingle();
+
+      if (profileError || !userProfiles) {
+        return { error: 'Invalid username or password.' };
+      }
+
+      // Get user email from auth.users via admin API
+      const { data: authUser } = await supabase.auth.admin.getUserById(userProfiles.id).catch(() => ({ data: null }));
+
+      if (!authUser?.user?.email) {
+        return { error: 'Invalid username or password.' };
+      }
+
+      // Sign in with email and password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: authUser.user.email,
+        password,
+      });
+
+      if (signInError) {
+        return { error: 'Invalid username or password.' };
+      }
+
+      return { error: null };
+    } catch {
+      return { error: 'Login failed. Please try again.' };
+    }
   }, []);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-    setIsAdmin(false);
+    setProfile(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isLoading, signIn, signOut }}>
+    <AuthContext.Provider value={{
+      user,
+      session,
+      profile,
+      isAdmin: profile?.role === 'admin',
+      isViewer: profile?.role === 'viewer',
+      isLoading,
+      signIn,
+      signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );

@@ -53,7 +53,7 @@ const renderTab = (tab: ActiveTab) => {
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
-  const { isAdmin, signOut } = useAuth();
+  const { isAdmin, signOut, profile } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
 
   return (

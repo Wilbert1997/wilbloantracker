@@ -70,12 +70,6 @@ const Loans: React.FC = () => {
     else setDeleteConfirm(id);
   };
 
-  const handleAddNew = () => {
-    if (!isAdmin) { setShowLogin(true); return; }
-    setEditLoan(null);
-    setShowModal(true);
-  };
-
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -84,14 +78,23 @@ const Loans: React.FC = () => {
           <h2 className="text-white text-2xl font-bold">Loans</h2>
           <p className="text-gray-500 text-sm mt-1">{loans.length} total loan{loans.length !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={handleAddNew}
-          className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-black px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
-        >
-          {isAdmin ? <Plus size={16} /> : <Lock size={16} />}
-          Add Loan
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => { setEditLoan(null); setShowModal(true); }}
+            className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-black px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
+          >
+            <Plus size={16} />
+            Add Loan
+          </button>
+        )}
       </div>
+
+      {!isAdmin && (
+        <div className="glass-card p-4 flex items-center gap-3 bg-blue-500/10 border border-blue-500/20">
+          <Lock size={16} className="text-blue-400 flex-shrink-0" />
+          <p className="text-blue-400 text-sm"><strong>Viewer Mode:</strong> Sign in as Admin to add, edit, or delete loans.</p>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="glass-card p-4 flex flex-wrap gap-3">
@@ -188,32 +191,28 @@ const Loans: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleEdit(loan)}
-                          className={`p-1.5 rounded-lg transition-all ${
-                            isAdmin
-                              ? 'text-gray-500 hover:text-blue-400 hover:bg-blue-500/10'
-                              : 'text-gray-600 hover:text-gray-400 hover:bg-white/5'
-                          }`}
-                          title={isAdmin ? 'Edit loan' : 'Admin login required'}
-                        >
-                          {isAdmin ? <Edit2 size={14} /> : <Lock size={14} />}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(loan.id)}
-                          className={`p-1.5 rounded-lg transition-all ${
-                            deleteConfirm === loan.id
-                              ? 'bg-red-500/20 text-red-400'
-                              : isAdmin
-                                ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/10'
-                                : 'text-gray-600 hover:text-gray-400 hover:bg-white/5'
-                          }`}
-                          title={isAdmin ? 'Delete loan' : 'Admin login required'}
-                        >
-                          {isAdmin ? <Trash2 size={14} /> : <Lock size={14} />}
-                        </button>
-                      </div>
+                      {isAdmin && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleEdit(loan)}
+                            className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
+                            title="Edit loan"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(loan.id)}
+                            className={`p-1.5 rounded-lg transition-all ${
+                              deleteConfirm === loan.id
+                                ? 'bg-red-500/20 text-red-400'
+                                : 'text-gray-500 hover:text-red-400 hover:bg-red-500/10'
+                            }`}
+                            title="Delete loan"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );
