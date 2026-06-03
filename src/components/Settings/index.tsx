@@ -3,7 +3,6 @@ import { Save, Download, Upload, Trash2, AlertTriangle, Settings as SettingsIcon
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { storage } from '../../utils/storage';
-import { supabase } from '../../lib/supabase';
 
 interface AdminUser {
   id: string;
@@ -79,12 +78,17 @@ const Settings: React.FC = () => {
     if (!isAdmin) return;
     setLoadingAdmins(true);
     try {
-      const { data, error } = await supabase
-        .from('admin_profiles')
-        .select('id, username, role, is_active, created_at')
-        .order('created_at', { ascending: false });
-      if (!error && data) {
-        setAdminUsers(data as AdminUser[]);
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/list-admin-profiles`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.profiles) {
+        setAdminUsers(data.profiles as AdminUser[]);
       }
     } catch {
       console.error('Failed to load admin users');
@@ -138,11 +142,23 @@ const Settings: React.FC = () => {
     if (!isAdmin) return;
     if (!window.confirm(`Delete account "${username}"? This cannot be undone.`)) return;
     try {
-      const { error } = await supabase.auth.admin.deleteUser(userId);
-      if (error) throw error;
-      loadAdminUsers();
-      setAdminCreateStatus({ type: 'success', msg: `Account "${username}" deleted` });
-    } catch {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-admin-profile`;
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        loadAdminUsers();
+        setAdminCreateStatus({ type: 'success', msg: `Account "${username}" deleted` });
+      } else {
+        setAdminCreateStatus({ type: 'error', msg: data.error || 'Failed to delete account' });
+      }
+    } catch (err) {
       setAdminCreateStatus({ type: 'error', msg: 'Failed to delete account' });
     }
   };
