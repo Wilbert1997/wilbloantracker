@@ -27,7 +27,7 @@ export const generateInstallments = (loan: Loan): Installment[] => {
   const start = new Date(loan.dateBorrowed);
   for (let i = 1; i <= loan.monthsToPay; i++) {
     const due = new Date(start);
-    due.setMonth(due.getMonth() + i);
+    due.setMonth(start.getMonth() + i);
     const dueDateStr = due.toISOString().split('T')[0];
     const today = new Date().toISOString().split('T')[0];
     let status: Installment['status'] = 'unpaid';
