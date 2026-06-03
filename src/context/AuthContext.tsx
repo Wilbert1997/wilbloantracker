@@ -76,36 +76,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = useCallback(async (username: string, password: string): Promise<{ error: string | null }> => {
     try {
-      // Fetch user email by username
-      const { data: userProfiles, error: profileError } = await supabase
-        .from('admin_profiles')
-        .select('id')
-        .eq('username', username)
-        .maybeSingle();
-
-      if (profileError || !userProfiles) {
-        return { error: 'Invalid username or password.' };
-      }
-
-      // Get user email from auth.users via admin API
-      const { data: authUser } = await supabase.auth.admin.getUserById(userProfiles.id).catch(() => ({ data: null }));
-
-      if (!authUser?.user?.email) {
-        return { error: 'Invalid username or password.' };
-      }
-
-      // Sign in with email and password
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: authUser.user.email,
-        password,
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-login`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ username, password }),
       });
 
-      if (signInError) {
-        return { error: 'Invalid username or password.' };
+      const data = await res.json();
+
+      if (!res.ok || !data.session) {
+        return { error: data.error || 'Login failed' };
+      }
+
+      // Set the session in Supabase client
+      const { error: setSessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+
+      if (setSessionError) {
+        return { error: setSessionError.message };
       }
 
       return { error: null };
-    } catch {
+    } catch (err) {
       return { error: 'Login failed. Please try again.' };
     }
   }, []);
