@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Edit2, Trash2, ChevronUp, ChevronDown, Filter } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit2, Trash2, ChevronUp, ChevronDown, Filter, Lock } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { formatPeso, formatDate, daysRemaining } from '../../utils/formatters';
 import AddLoanModal from './AddLoanModal';
+import LoginModal from '../Auth/LoginModal';
 import type { Loan, LoanCategory } from '../../types';
 
 type SortKey = keyof Loan;
@@ -18,7 +20,9 @@ const CATEGORIES: (LoanCategory | 'All')[] = ['All', 'Family', 'Friend', 'Busine
 
 const Loans: React.FC = () => {
   const { loans, deleteLoan } = useApp();
+  const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [editLoan, setEditLoan] = useState<Loan | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -54,9 +58,22 @@ const Loans: React.FC = () => {
     </span>
   );
 
+  const handleEdit = (loan: Loan) => {
+    if (!isAdmin) { setShowLogin(true); return; }
+    setEditLoan(loan);
+    setShowModal(true);
+  };
+
   const handleDelete = (id: string) => {
+    if (!isAdmin) { setShowLogin(true); return; }
     if (deleteConfirm === id) { deleteLoan(id); setDeleteConfirm(null); }
     else setDeleteConfirm(id);
+  };
+
+  const handleAddNew = () => {
+    if (!isAdmin) { setShowLogin(true); return; }
+    setEditLoan(null);
+    setShowModal(true);
   };
 
   return (
@@ -68,10 +85,10 @@ const Loans: React.FC = () => {
           <p className="text-gray-500 text-sm mt-1">{loans.length} total loan{loans.length !== 1 ? 's' : ''}</p>
         </div>
         <button
-          onClick={() => { setEditLoan(null); setShowModal(true); }}
+          onClick={handleAddNew}
           className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-black px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
         >
-          <Plus size={16} />
+          {isAdmin ? <Plus size={16} /> : <Lock size={16} />}
           Add Loan
         </button>
       </div>
@@ -173,20 +190,28 @@ const Loans: React.FC = () => {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => { setEditLoan(loan); setShowModal(true); }}
-                          className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
+                          onClick={() => handleEdit(loan)}
+                          className={`p-1.5 rounded-lg transition-all ${
+                            isAdmin
+                              ? 'text-gray-500 hover:text-blue-400 hover:bg-blue-500/10'
+                              : 'text-gray-600 hover:text-gray-400 hover:bg-white/5'
+                          }`}
+                          title={isAdmin ? 'Edit loan' : 'Admin login required'}
                         >
-                          <Edit2 size={14} />
+                          {isAdmin ? <Edit2 size={14} /> : <Lock size={14} />}
                         </button>
                         <button
                           onClick={() => handleDelete(loan.id)}
                           className={`p-1.5 rounded-lg transition-all ${
                             deleteConfirm === loan.id
                               ? 'bg-red-500/20 text-red-400'
-                              : 'text-gray-500 hover:text-red-400 hover:bg-red-500/10'
+                              : isAdmin
+                                ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/10'
+                                : 'text-gray-600 hover:text-gray-400 hover:bg-white/5'
                           }`}
+                          title={isAdmin ? 'Delete loan' : 'Admin login required'}
                         >
-                          <Trash2 size={14} />
+                          {isAdmin ? <Trash2 size={14} /> : <Lock size={14} />}
                         </button>
                       </div>
                     </td>
@@ -199,6 +224,7 @@ const Loans: React.FC = () => {
       </div>
 
       {showModal && <AddLoanModal onClose={() => { setShowModal(false); setEditLoan(null); }} editLoan={editLoan} />}
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
     </div>
   );
 };

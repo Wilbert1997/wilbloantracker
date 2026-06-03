@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppProvider } from './context/AppContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Layout/Sidebar';
 import BottomNav from './components/Layout/BottomNav';
 import Dashboard from './components/Dashboard';
@@ -13,9 +14,15 @@ import Settings from './components/Settings';
 import type { ActiveTab } from './types';
 import { Plus, TrendingUp } from 'lucide-react';
 import AddLoanModal from './components/Loans/AddLoanModal';
+import LoginModal from './components/Auth/LoginModal';
 
 const FAB: React.FC = () => {
+  const { isAdmin } = useAuth();
   const [show, setShow] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+
+  if (!isAdmin) return null;
+
   return (
     <>
       <button
@@ -26,6 +33,7 @@ const FAB: React.FC = () => {
         <Plus size={22} strokeWidth={2.5} />
       </button>
       {show && <AddLoanModal onClose={() => setShow(false)} editLoan={null} />}
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
     </>
   );
 };
@@ -45,6 +53,8 @@ const renderTab = (tab: ActiveTab) => {
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const { isAdmin, signOut } = useAuth();
+  const [showLogin, setShowLogin] = useState(false);
 
   return (
     <div className="min-h-screen bg-[#0A0A0A]">
@@ -60,6 +70,23 @@ const AppContent: React.FC = () => {
           <span className="text-gray-600 text-xs">
             / {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
           </span>
+          <div className="ml-auto">
+            {isAdmin ? (
+              <button
+                onClick={signOut}
+                className="text-xs px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-all font-medium"
+              >
+                Sign Out
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowLogin(true)}
+                className="text-xs px-3 py-1.5 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 transition-all font-medium"
+              >
+                Admin
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="px-4 py-6 lg:px-8">
@@ -71,15 +98,18 @@ const AppContent: React.FC = () => {
 
       <BottomNav active={activeTab} onNavigate={setActiveTab} />
       <FAB />
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
     </div>
   );
 };
 
 function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </AuthProvider>
   );
 }
 

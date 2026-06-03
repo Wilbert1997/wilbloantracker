@@ -1,14 +1,23 @@
 import React, { useState } from 'react';
-import { Save, Download, Upload, Trash2, AlertTriangle, Settings as SettingsIcon } from 'lucide-react';
+import { Save, Download, Upload, Trash2, AlertTriangle, Settings as SettingsIcon, ShieldCheck, UserPlus, Eye, EyeOff, LogOut } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { storage } from '../../utils/storage';
 
 const Settings: React.FC = () => {
   const { settings, updateSettings, importData, clearAll } = useApp();
+  const { isAdmin, user, signOut } = useAuth();
   const [businessName, setBusinessName] = useState(settings.businessName);
   const [defaultRate, setDefaultRate] = useState(String(settings.defaultInterestRate));
   const [clearConfirm, setClearConfirm] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Admin setup state
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [adminSetupStatus, setAdminSetupStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [adminSetupLoading, setAdminSetupLoading] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +61,35 @@ const Settings: React.FC = () => {
   const handleClear = () => {
     if (clearConfirm) { clearAll(); setClearConfirm(false); }
     else setClearConfirm(true);
+  };
+
+  const handleAdminSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminSetupLoading(true);
+    setAdminSetupStatus(null);
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAdminSetupStatus({ type: 'error', msg: data.error ?? 'Failed to create admin.' });
+      } else {
+        setAdminSetupStatus({ type: 'success', msg: `Admin account created for ${data.email}` });
+        setAdminEmail('');
+        setAdminPassword('');
+      }
+    } catch {
+      setAdminSetupStatus({ type: 'error', msg: 'Network error. Please try again.' });
+    } finally {
+      setAdminSetupLoading(false);
+    }
   };
 
   return (
@@ -160,6 +198,76 @@ const Settings: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Admin Account */}
+      <div className="glass-card p-6">
+        <h3 className="text-white font-semibold mb-5 flex items-center gap-2">
+          <ShieldCheck size={16} className="text-green-400" />
+          Admin Account
+        </h3>
+
+        {isAdmin ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
+              <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
+                <ShieldCheck size={18} className="text-green-400" />
+              </div>
+              <div>
+                <p className="text-green-400 font-semibold text-sm">Signed in as Admin</p>
+                <p className="text-gray-400 text-xs mt-0.5">{user?.email}</p>
+              </div>
+            </div>
+            <button
+              onClick={signOut}
+              className="flex items-center gap-2 px-4 py-2.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-xl text-sm font-medium transition-all"
+            >
+              <LogOut size={14} />
+              Sign Out of Admin
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-gray-500 text-sm">Create the admin account to enable loan editing and management controls.</p>
+            <form onSubmit={handleAdminSetup} className="space-y-3">
+              <div>
+                <label className="block text-gray-400 text-xs font-medium mb-1.5">Admin Email</label>
+                <input
+                  type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} required
+                  placeholder="admin@example.com"
+                  className="w-full bg-white/5 border border-white/10 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-green-500/50 transition-all placeholder-gray-600"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 text-xs font-medium mb-1.5">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'} value={adminPassword}
+                    onChange={e => setAdminPassword(e.target.value)} required minLength={6}
+                    placeholder="Min. 6 characters"
+                    className="w-full bg-white/5 border border-white/10 text-white rounded-lg px-3 pr-10 py-2.5 text-sm focus:outline-none focus:border-green-500/50 transition-all placeholder-gray-600"
+                  />
+                  <button type="button" onClick={() => setShowPassword(p => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors">
+                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+              {adminSetupStatus && (
+                <div className={`text-xs px-3 py-2 rounded-lg ${adminSetupStatus.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                  {adminSetupStatus.msg}
+                </div>
+              )}
+              <button
+                type="submit" disabled={adminSetupLoading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-black rounded-xl text-sm font-bold transition-all"
+              >
+                <UserPlus size={14} />
+                {adminSetupLoading ? 'Creating...' : 'Create Admin Account'}
+              </button>
+            </form>
+          </div>
+        )}
       </div>
 
       {/* App Info */}
