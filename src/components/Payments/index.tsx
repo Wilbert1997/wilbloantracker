@@ -1,12 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Hash, Filter } from 'lucide-react';
+import { Plus, Search, Hash, Filter, Lock } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { formatPeso, formatDate } from '../../utils/formatters';
 import AddPaymentModal from './AddPaymentModal';
+import LoginModal from '../Auth/LoginModal';
 
 const Payments: React.FC = () => {
   const { payments, loans } = useApp();
+  const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [search, setSearch] = useState('');
   const [loanFilter, setLoanFilter] = useState('');
 
@@ -31,14 +35,23 @@ const Payments: React.FC = () => {
           <h2 className="text-white text-2xl font-bold">Payments</h2>
           <p className="text-gray-500 text-sm mt-1">{payments.length} payment{payments.length !== 1 ? 's' : ''} · Total: <span className="text-green-400 font-semibold">{formatPeso(totalCollected)}</span></p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-black px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
-        >
-          <Plus size={16} />
-          Record Payment
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-black px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
+          >
+            <Plus size={16} />
+            Record Payment
+          </button>
+        )}
       </div>
+
+      {!isAdmin && (
+        <div className="glass-card p-4 flex items-center gap-3 bg-blue-500/10 border border-blue-500/20">
+          <Lock size={16} className="text-blue-400 flex-shrink-0" />
+          <p className="text-blue-400 text-sm"><strong>Viewer Mode:</strong> Sign in as Admin to record payments.</p>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="glass-card p-4 flex flex-wrap gap-3">
@@ -108,6 +121,7 @@ const Payments: React.FC = () => {
       </div>
 
       {showModal && <AddPaymentModal onClose={() => setShowModal(false)} />}
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
     </div>
   );
 };

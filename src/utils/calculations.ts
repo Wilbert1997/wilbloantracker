@@ -37,18 +37,24 @@ export const generateInstallments = (loan: Loan): Installment[] => {
   const start = new Date(loan.dateBorrowed + 'T00:00:00');
   const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
 
+  // Round monthly payment to 2 decimal places, adjust last installment for drift
+  const roundedMonthly = Math.round(loan.monthlyPayment * 100) / 100;
+  const sumBeforeLast = roundedMonthly * (loan.monthsToPay - 1);
+  const lastMonthly = Math.round((loan.totalDue - sumBeforeLast) * 100) / 100;
+
   for (let i = 1; i <= loan.monthsToPay; i++) {
     const dueDateStr = addMonths(start, i);
     let status: Installment['status'] = 'unpaid';
     if (dueDateStr < today) status = 'overdue';
+    const monthlyAmount = i === loan.monthsToPay ? lastMonthly : roundedMonthly;
     installments.push({
       id: `${loan.id}-inst-${i}`,
       loanId: loan.id,
       installmentNumber: i,
       dueDate: dueDateStr,
-      monthlyAmount: loan.monthlyPayment,
+      monthlyAmount,
       amountPaid: 0,
-      remainingAmount: loan.monthlyPayment,
+      remainingAmount: monthlyAmount,
       status,
     });
   }

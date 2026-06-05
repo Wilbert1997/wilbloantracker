@@ -142,7 +142,7 @@ const Installments: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {inst.status !== 'paid' && loan && (
+                      {inst.status !== 'paid' && loan && loan.status !== 'completed' && (
                         <button
                           onClick={() => { setPayModalLoan(loan); setPayModalInstNum(inst.installmentNumber); }}
                           className="text-xs px-3 py-1.5 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 transition-all font-medium"

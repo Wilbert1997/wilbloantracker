@@ -32,6 +32,11 @@ const AddPaymentModal: React.FC<AddPaymentModalProps> = ({ onClose, preselectedL
   const activeLoan = loans.find(l => l.id === selectedLoanId);
   const loanInstallments = activeLoan ? installments.filter(i => i.loanId === activeLoan.id && i.status !== 'paid') : [];
 
+  const parsedAmount = parseFloat(amount) || 0;
+  const isOverpay = activeLoan && parsedAmount > activeLoan.remainingBalance;
+  const selectedInst = installmentNum ? loanInstallments.find(i => i.installmentNumber === parseInt(installmentNum)) : null;
+  const isOverpayInst = selectedInst && parsedAmount > selectedInst.remainingAmount;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLoanId || !amount || !date) return;
@@ -144,6 +149,12 @@ const AddPaymentModal: React.FC<AddPaymentModalProps> = ({ onClose, preselectedL
                   Full Balance ({formatPeso(activeLoan.remainingBalance)})
                 </button>
               </div>
+            )}
+            {isOverpay && !selectedInst && (
+              <p className="text-amber-400 text-[11px] mt-1">Amount exceeds remaining balance of {formatPeso(activeLoan.remainingBalance)}</p>
+            )}
+            {isOverpayInst && (
+              <p className="text-amber-400 text-[11px] mt-1">Amount exceeds installment remaining of {formatPeso(selectedInst.remainingAmount)}</p>
             )}
           </div>
 
