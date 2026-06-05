@@ -24,6 +24,7 @@ const Installments: React.FC = () => {
   const [loanFilter, setLoanFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [payModalLoan, setPayModalLoan] = useState<Loan | null>(null);
+  const [payModalInstNum, setPayModalInstNum] = useState<number | undefined>();
 
   const filtered = useMemo(() => {
     let result = [...installments];
@@ -143,7 +144,7 @@ const Installments: React.FC = () => {
                     <td className="px-4 py-3 whitespace-nowrap">
                       {inst.status !== 'paid' && loan && (
                         <button
-                          onClick={() => setPayModalLoan(loan)}
+                          onClick={() => { setPayModalLoan(loan); setPayModalInstNum(inst.installmentNumber); }}
                           className="text-xs px-3 py-1.5 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 transition-all font-medium"
                         >
                           Pay
@@ -158,7 +159,7 @@ const Installments: React.FC = () => {
         </div>
       </div>
 
-      {payModalLoan && <AddPaymentModal onClose={() => setPayModalLoan(null)} preselectedLoan={payModalLoan} />}
+      {payModalLoan && <AddPaymentModal onClose={() => { setPayModalLoan(null); setPayModalInstNum(undefined); }} preselectedLoan={payModalLoan} preselectedInstallment={payModalInstNum} />}
     </div>
   );
 };

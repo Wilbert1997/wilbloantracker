@@ -36,7 +36,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settings, setSettings] = useState<Settings>(() => storage.getSettings());
 
   const refreshStatuses = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     setLoans(prev => {
       const updated = prev.map(loan => {
         const loanInst = installments.filter(i => i.loanId === loan.id);
@@ -109,8 +110,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       storage.saveLoans(n);
       return n;
     });
-    if (p.installmentNumber) {
-      setInstallments(prev => {
+    setInstallments(prev => {
+      if (p.installmentNumber) {
+        // Payment targets a specific installment
         const n = prev.map(inst => {
           if (inst.loanId !== p.loanId || inst.installmentNumber !== p.installmentNumber) return inst;
           const newPaid = inst.amountPaid + p.amount;
@@ -120,8 +122,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         storage.saveInstallments(n);
         return n;
+      }
+      // No specific installment — distribute across unpaid/partial/overdue installments
+      let remaining = p.amount;
+      const loanInsts = prev.filter(i => i.loanId === p.loanId && i.status !== 'paid')
+        .sort((a, b) => a.installmentNumber - b.installmentNumber);
+      const paidSet = new Set(loanInsts.map(i => i.id));
+      const n = prev.map(inst => {
+        if (!paidSet.has(inst.id)) return inst;
+        if (remaining <= 0) return inst;
+        const owed = inst.remainingAmount;
+        const apply = Math.min(remaining, owed);
+        remaining -= apply;
+        const newPaid = inst.amountPaid + apply;
+        const newRemaining = Math.max(0, inst.monthlyAmount - newPaid);
+        const status = newRemaining <= 0 ? 'paid' as const : 'partial' as const;
+        return { ...inst, amountPaid: newPaid, remainingAmount: newRemaining, status };
       });
-    }
+      storage.saveInstallments(n);
+      return n;
+    });
   }, []);
 
   const updateInstallment = useCallback((inst: Installment) => {

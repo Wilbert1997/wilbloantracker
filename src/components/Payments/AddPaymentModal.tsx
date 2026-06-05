@@ -7,15 +7,27 @@ import type { Loan } from '../../types';
 interface AddPaymentModalProps {
   onClose: () => void;
   preselectedLoan?: Loan;
+  preselectedInstallment?: number;
 }
 
-const AddPaymentModal: React.FC<AddPaymentModalProps> = ({ onClose, preselectedLoan }) => {
+const AddPaymentModal: React.FC<AddPaymentModalProps> = ({ onClose, preselectedLoan, preselectedInstallment }) => {
   const { loans, installments, addPayment } = useApp();
   const [selectedLoanId, setSelectedLoanId] = useState(preselectedLoan?.id ?? '');
   const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [notes, setNotes] = useState('');
-  const [installmentNum, setInstallmentNum] = useState('');
+  const [installmentNum, setInstallmentNum] = useState(preselectedInstallment ? String(preselectedInstallment) : '');
+
+  // Pre-fill amount when preselectedInstallment is provided
+  React.useEffect(() => {
+    if (preselectedInstallment && preselectedLoan) {
+      const inst = installments.find(i => i.loanId === preselectedLoan.id && i.installmentNumber === preselectedInstallment);
+      if (inst) setAmount(String(inst.remainingAmount.toFixed(2)));
+    }
+  }, [preselectedInstallment, preselectedLoan, installments]);
 
   const activeLoan = loans.find(l => l.id === selectedLoanId);
   const loanInstallments = activeLoan ? installments.filter(i => i.loanId === activeLoan.id && i.status !== 'paid') : [];

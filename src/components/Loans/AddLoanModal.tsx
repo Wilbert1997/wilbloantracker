@@ -35,7 +35,10 @@ const AddLoanModal: React.FC<AddLoanModalProps> = ({ onClose, editLoan }) => {
   const [notes, setNotes] = useState(editLoan?.notes ?? '');
   const [amount, setAmount] = useState(editLoan ? String(editLoan.amountBorrowed) : '');
   const [interest, setInterest] = useState(editLoan ? String(editLoan.interestRate) : String(settings.defaultInterestRate));
-  const [dateBorrowed, setDateBorrowed] = useState(editLoan?.dateBorrowed ?? new Date().toISOString().split('T')[0]);
+  const [dateBorrowed, setDateBorrowed] = useState(editLoan?.dateBorrowed ?? (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })());
   const [months, setMonths] = useState(editLoan ? String(editLoan.monthsToPay) : '12');
   const [category, setCategory] = useState<LoanCategory>(editLoan?.category ?? 'Personal');
 

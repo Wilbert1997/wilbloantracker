@@ -7,6 +7,17 @@ export interface LoanCalcResult {
   dueDate: string;
 }
 
+function addMonths(date: Date, months: number): string {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const targetMonth = d.getMonth() + months;
+  const targetYear = d.getFullYear() + Math.floor(targetMonth / 12);
+  const targetMo = ((targetMonth % 12) + 12) % 12;
+  const maxDay = new Date(targetYear, targetMo + 1, 0).getDate();
+  const targetDay = Math.min(d.getDate(), maxDay);
+  const result = new Date(targetYear, targetMo, targetDay);
+  return `${result.getFullYear()}-${String(result.getMonth() + 1).padStart(2, '0')}-${String(result.getDate()).padStart(2, '0')}`;
+}
+
 export const calculateLoan = (
   amountBorrowed: number,
   interestRate: number,
@@ -16,20 +27,18 @@ export const calculateLoan = (
   const interestAmount = amountBorrowed * (interestRate / 100);
   const totalDue = amountBorrowed + interestAmount;
   const monthlyPayment = totalDue / monthsToPay;
-  const start = new Date(dateBorrowed);
-  start.setMonth(start.getMonth() + monthsToPay);
-  const dueDate = start.toISOString().split('T')[0];
+  const start = new Date(dateBorrowed + 'T00:00:00');
+  const dueDate = addMonths(start, monthsToPay);
   return { interestAmount, totalDue, monthlyPayment, dueDate };
 };
 
 export const generateInstallments = (loan: Loan): Installment[] => {
   const installments: Installment[] = [];
-  const start = new Date(loan.dateBorrowed);
+  const start = new Date(loan.dateBorrowed + 'T00:00:00');
+  const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+
   for (let i = 1; i <= loan.monthsToPay; i++) {
-    const due = new Date(start);
-    due.setMonth(start.getMonth() + i);
-    const dueDateStr = due.toISOString().split('T')[0];
-    const today = new Date().toISOString().split('T')[0];
+    const dueDateStr = addMonths(start, i);
     let status: Installment['status'] = 'unpaid';
     if (dueDateStr < today) status = 'overdue';
     installments.push({
