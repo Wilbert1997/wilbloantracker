@@ -38,35 +38,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshStatuses = useCallback(() => {
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    setLoans(prev => {
-      const updated = prev.map(loan => {
-        const loanInst = installments.filter(i => i.loanId === loan.id);
-        const allPaid = loanInst.length > 0 && loanInst.every(i => i.status === 'paid');
-        const hasOverdue = loanInst.some(i => i.status === 'overdue');
-        let status = loan.status;
-        if (allPaid || loan.remainingBalance <= 0) status = 'completed';
-        else if (hasOverdue || loan.dueDate < today) status = 'overdue';
-        else status = 'active';
-        return { ...loan, status };
-      });
-      storage.saveLoans(updated);
-      return updated;
-    });
     setInstallments(prev => {
       const updated = prev.map(inst => {
         if (inst.status === 'paid') return inst;
-        if (inst.amountPaid > 0 && inst.amountPaid < inst.monthlyAmount) {
-          return { ...inst, status: 'partial' as const };
-        }
-        if (inst.dueDate < today && inst.status !== 'paid') {
+        // Overdue takes priority: past due date with any unpaid amount
+        if (inst.dueDate < today && inst.remainingAmount > 0) {
           return { ...inst, status: 'overdue' as const };
         }
-        return inst;
+        if (inst.amountPaid > 0 && inst.remainingAmount > 0) {
+          return { ...inst, status: 'partial' as const };
+        }
+        return { ...inst, status: 'unpaid' as const };
       });
       storage.saveInstallments(updated);
+      // Use updated installments for loan status calculation
+      setLoans(prevLoans => {
+        const loanUpdated = prevLoans.map(loan => {
+          const loanInst = updated.filter(i => i.loanId === loan.id);
+          const allPaid = loanInst.length > 0 && loanInst.every(i => i.status === 'paid');
+          const hasOverdue = loanInst.some(i => i.status === 'overdue');
+          let status = loan.status;
+          if (allPaid || loan.remainingBalance <= 0) status = 'completed';
+          else if (hasOverdue || loan.dueDate < today) status = 'overdue';
+          else status = 'active';
+          return { ...loan, status };
+        });
+        storage.saveLoans(loanUpdated);
+        return loanUpdated;
+      });
       return updated;
     });
-  }, [installments]);
+  }, []);
 
   useEffect(() => { refreshStatuses(); }, []);
 
@@ -89,7 +91,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const updateLoan = useCallback((l: Loan) => {
-    setLoans(prev => { const n = prev.map(x => x.id === l.id ? l : x); storage.saveLoans(n); return n; });
+    setLoans(prev => {
+      const old = prev.find(x => x.id === l.id);
+      const n = prev.map(x => x.id === l.id ? l : x);
+      storage.saveLoans(n);
+      // Regenerate installments if loan terms that affect schedule changed
+      if (old && (old.monthsToPay !== l.monthsToPay || old.monthlyPayment !== l.monthlyPayment || old.dateBorrowed !== l.dateBorrowed || old.totalDue !== l.totalDue)) {
+        setInstallments(prevInst => {
+          // Keep payment history for installments that still exist
+          const newInsts = generateInstallments(l);
+          const oldPayments = new Map(
+            prevInst.filter(i => i.loanId === l.id).map(i => [i.installmentNumber, i])
+          );
+          const merged = newInsts.map(newInst => {
+            const oldInst = oldPayments.get(newInst.installmentNumber);
+            if (oldInst && oldInst.amountPaid > 0) {
+              const paid = Math.min(oldInst.amountPaid, newInst.monthlyAmount);
+              const remaining = Math.max(0, newInst.monthlyAmount - paid);
+              const status = remaining <= 0 ? 'paid' as const : 'partial' as const;
+              return { ...newInst, amountPaid: paid, remainingAmount: remaining, status };
+            }
+            return newInst;
+          });
+          const other = prevInst.filter(i => i.loanId !== l.id);
+          const result = [...other, ...merged];
+          storage.saveInstallments(result);
+          return result;
+        });
+      }
+      return n;
+    });
   }, []);
 
   const deleteLoan = useCallback((id: string) => {
