@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, CreditCard as Edit2, Trash2, ChevronUp, ChevronDown, Filter, Lock } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit2, Trash2, ChevronUp, ChevronDown, Filter, Lock, Percent, CalendarDays, Info } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatPeso, formatDate, daysRemaining } from '../../utils/formatters';
@@ -172,7 +172,44 @@ const Loans: React.FC = () => {
                       <p className="text-gray-500 text-xs">{loan.category}</p>
                     </td>
                     <td className="px-4 py-3 text-white whitespace-nowrap">{formatPeso(loan.amountBorrowed)}</td>
-                    <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{loan.interestRate}%</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-gray-300">{loan.interestRate}%</span>
+                        {loan.interestMode === 'monthly' ? (
+                          <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400" title="Monthly interest breakdown">
+                            <CalendarDays size={9} />
+                            Monthly
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 text-green-400" title="Total flat interest">
+                            <Percent size={9} />
+                            Total
+                          </span>
+                        )}
+                      </div>
+                      {loan.interestMode === 'monthly' && loan.monthlyInterestBreakdown && loan.monthlyInterestBreakdown.length > 0 && (
+                        <div className="mt-1 group relative inline-block">
+                          <Info size={11} className="text-blue-400 cursor-help" />
+                          <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 w-64">
+                            <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-2xl">
+                              <p className="text-blue-400 text-xs font-semibold mb-2">Monthly Interest Breakdown</p>
+                              <div className="space-y-1 max-h-32 overflow-y-auto">
+                                {loan.monthlyInterestBreakdown.map((mi) => (
+                                  <div key={mi.month} className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-500">Month {mi.month}</span>
+                                    <span className="text-white font-medium">{formatPeso(mi.amount)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="border-t border-white/5 mt-2 pt-2 flex justify-between text-xs">
+                                <span className="text-gray-400">Total Interest</span>
+                                <span className="text-green-400 font-bold">{formatPeso(loan.interestAmount)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-white whitespace-nowrap">{formatPeso(loan.totalDue)}</td>
                     <td className="px-4 py-3 text-blue-400 whitespace-nowrap">{formatPeso(loan.monthlyPayment)}</td>
                     <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{loan.monthsToPay} mo.</td>

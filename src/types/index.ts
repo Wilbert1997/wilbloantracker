@@ -1,6 +1,7 @@
 export type LoanCategory = 'Family' | 'Friend' | 'Business' | 'Personal' | 'Employee' | 'Other';
 export type LoanStatus = 'active' | 'completed' | 'overdue';
 export type InstallmentStatus = 'paid' | 'partial' | 'unpaid' | 'overdue';
+export type InterestMode = 'total' | 'monthly';
 
 export interface Borrower {
   id: string;
@@ -9,6 +10,12 @@ export interface Borrower {
   address: string;
   notes: string;
   createdAt: string;
+}
+
+export interface MonthlyInterest {
+  month: number;
+  rate: number;
+  amount: number;
 }
 
 export interface Loan {
@@ -28,6 +35,8 @@ export interface Loan {
   category: LoanCategory;
   notes: string;
   createdAt: string;
+  interestMode: InterestMode;
+  monthlyInterestBreakdown?: MonthlyInterest[];
 }
 
 export interface Payment {

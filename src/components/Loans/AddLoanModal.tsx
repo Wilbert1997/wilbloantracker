@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calculator } from 'lucide-react';
+import { X, Calculator, Percent, CalendarDays } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { calculateLoan, generateTransactionId } from '../../utils/calculations';
 import { formatPeso } from '../../utils/formatters';
-import type { Loan, LoanCategory } from '../../types';
+import type { Loan, LoanCategory, InterestMode } from '../../types';
 
 interface AddLoanModalProps {
   onClose: () => void;
@@ -41,17 +41,18 @@ const AddLoanModal: React.FC<AddLoanModalProps> = ({ onClose, editLoan }) => {
   })());
   const [months, setMonths] = useState(editLoan ? String(editLoan.monthsToPay) : '12');
   const [category, setCategory] = useState<LoanCategory>(editLoan?.category ?? 'Personal');
+  const [interestMode, setInterestMode] = useState<InterestMode>(editLoan?.interestMode ?? 'total');
 
-  const [calc, setCalc] = useState({ interestAmount: 0, totalDue: 0, monthlyPayment: 0, dueDate: '' });
+  const [calc, setCalc] = useState({ interestAmount: 0, totalDue: 0, monthlyPayment: 0, dueDate: '', monthlyInterestBreakdown: [] as { month: number; rate: number; amount: number }[] });
 
   useEffect(() => {
     const a = parseFloat(amount) || 0;
     const i = parseFloat(interest) || 0;
     const m = parseInt(months) || 1;
     if (a > 0 && m > 0 && dateBorrowed) {
-      setCalc(calculateLoan(a, i, m, dateBorrowed));
+      setCalc(calculateLoan(a, i, m, dateBorrowed, interestMode));
     }
-  }, [amount, interest, months, dateBorrowed]);
+  }, [amount, interest, months, dateBorrowed, interestMode]);
 
   const existingBorrower = borrowers.find(b => b.name.toLowerCase() === name.toLowerCase());
 
@@ -83,6 +84,8 @@ const AddLoanModal: React.FC<AddLoanModalProps> = ({ onClose, editLoan }) => {
         interestAmount: calc.interestAmount, totalDue: calc.totalDue,
         monthlyPayment: calc.monthlyPayment, monthsToPay: m,
         dateBorrowed, dueDate: calc.dueDate, category, notes,
+        interestMode,
+        monthlyInterestBreakdown: calc.monthlyInterestBreakdown.length > 0 ? calc.monthlyInterestBreakdown : undefined,
       });
     } else {
       const newLoan: Loan = {
@@ -95,6 +98,8 @@ const AddLoanModal: React.FC<AddLoanModalProps> = ({ onClose, editLoan }) => {
         remainingBalance: calc.totalDue,
         status: 'active', category, notes,
         createdAt: new Date().toISOString(),
+        interestMode,
+        monthlyInterestBreakdown: calc.monthlyInterestBreakdown.length > 0 ? calc.monthlyInterestBreakdown : undefined,
       };
       addLoan(newLoan);
     }
@@ -174,14 +179,54 @@ const AddLoanModal: React.FC<AddLoanModalProps> = ({ onClose, editLoan }) => {
             </div>
           </div>
 
+          {/* Interest Mode */}
+          <div>
+            <h3 className="text-gray-300 text-sm font-semibold mb-3 pb-2 border-b border-white/5">Interest Calculation</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setInterestMode('total')}
+                className={`flex items-center gap-2 p-3 rounded-xl border text-left transition-all ${
+                  interestMode === 'total'
+                    ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/8'
+                }`}
+              >
+                <Percent size={16} className={interestMode === 'total' ? 'text-green-400' : 'text-gray-500'} />
+                <div>
+                  <p className="text-sm font-medium">Total Interest</p>
+                  <p className="text-[10px] text-gray-500">Flat rate on principal</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setInterestMode('monthly')}
+                className={`flex items-center gap-2 p-3 rounded-xl border text-left transition-all ${
+                  interestMode === 'monthly'
+                    ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/8'
+                }`}
+              >
+                <CalendarDays size={16} className={interestMode === 'monthly' ? 'text-green-400' : 'text-gray-500'} />
+                <div>
+                  <p className="text-sm font-medium">Monthly Breakdown</p>
+                  <p className="text-[10px] text-gray-500">Interest per month</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Auto Calculation Preview */}
           {parseFloat(amount) > 0 && (
             <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Calculator size={14} className="text-green-400" />
                 <span className="text-green-400 text-sm font-semibold">Auto Calculation</span>
+                <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 font-medium">
+                  {interestMode === 'total' ? 'Total Interest' : 'Monthly Breakdown'}
+                </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                 {[
                   { label: 'Interest Amount', value: formatPeso(calc.interestAmount) },
                   { label: 'Total Due', value: formatPeso(calc.totalDue) },
@@ -194,6 +239,25 @@ const AddLoanModal: React.FC<AddLoanModalProps> = ({ onClose, editLoan }) => {
                   </div>
                 ))}
               </div>
+
+              {/* Monthly Interest Breakdown */}
+              {interestMode === 'monthly' && calc.monthlyInterestBreakdown.length > 0 && (
+                <div className="border-t border-green-500/10 pt-3">
+                  <p className="text-green-400 text-xs font-medium mb-2">Monthly Interest Breakdown</p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-40 overflow-y-auto pr-1">
+                    {calc.monthlyInterestBreakdown.map((mi) => (
+                      <div key={mi.month} className="bg-white/5 rounded-lg p-2 text-center">
+                        <p className="text-gray-500 text-[10px]">Month {mi.month}</p>
+                        <p className="text-white text-xs font-bold">{formatPeso(mi.amount)}</p>
+                        <p className="text-gray-600 text-[9px]">{mi.rate}%</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-gray-500 text-[10px] mt-2">
+                    Each month: {formatPeso(calc.monthlyInterestBreakdown[0]?.amount ?? 0)} interest + principal portion
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

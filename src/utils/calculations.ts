@@ -1,10 +1,11 @@
-import type { Loan, Installment } from '../types';
+import type { Loan, Installment, InterestMode, MonthlyInterest } from '../types';
 
 export interface LoanCalcResult {
   interestAmount: number;
   totalDue: number;
   monthlyPayment: number;
   dueDate: string;
+  monthlyInterestBreakdown: MonthlyInterest[];
 }
 
 function addMonths(date: Date, months: number): string {
@@ -22,14 +23,41 @@ export const calculateLoan = (
   amountBorrowed: number,
   interestRate: number,
   monthsToPay: number,
-  dateBorrowed: string
+  dateBorrowed: string,
+  interestMode: InterestMode = 'total'
 ): LoanCalcResult => {
-  const interestAmount = amountBorrowed * (interestRate / 100);
-  const totalDue = amountBorrowed + interestAmount;
-  const monthlyPayment = totalDue / monthsToPay;
   const start = new Date(dateBorrowed + 'T00:00:00');
   const dueDate = addMonths(start, monthsToPay);
-  return { interestAmount, totalDue, monthlyPayment, dueDate };
+
+  if (interestMode === 'monthly') {
+    // Monthly interest: rate applied each month to principal
+    const monthlyRate = interestRate / 100;
+    const monthlyInterestBreakdown: MonthlyInterest[] = [];
+    let totalInterest = 0;
+
+    for (let i = 1; i <= monthsToPay; i++) {
+      const monthInterest = Math.round(amountBorrowed * monthlyRate * 100) / 100;
+      totalInterest += monthInterest;
+      monthlyInterestBreakdown.push({
+        month: i,
+        rate: interestRate,
+        amount: monthInterest,
+      });
+    }
+
+    const interestAmount = Math.round(totalInterest * 100) / 100;
+    const totalDue = amountBorrowed + interestAmount;
+    const monthlyPayment = totalDue / monthsToPay;
+
+    return { interestAmount, totalDue, monthlyPayment, dueDate, monthlyInterestBreakdown };
+  }
+
+  // Total interest: single flat rate on principal
+  const interestAmount = Math.round(amountBorrowed * (interestRate / 100) * 100) / 100;
+  const totalDue = amountBorrowed + interestAmount;
+  const monthlyPayment = totalDue / monthsToPay;
+
+  return { interestAmount, totalDue, monthlyPayment, dueDate, monthlyInterestBreakdown: [] };
 };
 
 export const generateInstallments = (loan: Loan): Installment[] => {
